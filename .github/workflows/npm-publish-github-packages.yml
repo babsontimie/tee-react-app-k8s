@@ -18,7 +18,9 @@ jobs:
         with:
           node-version: 20
       - run: npm ci
+        working-directory: tee-react-app
       - run: npm test
+        working-directory: tee-react-app
 
   publish-gpr:
     needs: build
@@ -33,7 +35,9 @@ jobs:
           node-version: 20
           registry-url: https://npm.pkg.github.com/
       - run: npm ci
+        working-directory: tee-react-app
       - run: npm publish
+        working-directory: tee-react-app
         env:
           NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
           
