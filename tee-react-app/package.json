@@ -1,7 +1,10 @@
 {
-  "name": "tee-react-app",
+  "name": "@babsontimie/tee-react-app",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  },
   "dependencies": {
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.8.0",
