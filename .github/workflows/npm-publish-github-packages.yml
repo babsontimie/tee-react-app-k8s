@@ -43,7 +43,8 @@ jobs:
         working-directory: tee-react-app
         
       - name: Bump version (patch)
-        run: npm version patch --no-git-tag-version   
+        run: npm version patch --no-git-tag-version
+        working-directory: tee-react-app        
         
       - run: npm publish
         working-directory: tee-react-app
