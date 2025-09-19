@@ -11,11 +11,10 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
-          cache-dependency-path: tee-react-app/package-lock.json
 
       - run: npm ci
         working-directory: tee-react-app
@@ -23,37 +22,27 @@ jobs:
       - run: npm test
         working-directory: tee-react-app
 
-      # Save node_modules for next job
-      - name: Cache node_modules
-        uses: actions/cache/save@v4
-        with:
-          path: tee-react-app/node_modules
-          key: npm-${{ hashFiles('tee-react-app/package-lock.json') }}
-
   publish-gpr:
     needs: build
     runs-on: self-hosted
     permissions:
       contents: read
       packages: write
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: https://npm.pkg.github.com/
-          cache: 'npm'
-          cache-dependency-path: tee-react-app/package-lock.json
-
-      # Restore cached node_modules
-      - name: Restore node_modules
-        uses: actions/cache/restore@v4
-        with:
-          path: tee-react-app/node_modules
-          key: npm-${{ hashFiles('tee-react-app/package-lock.json') }}
 
       - name: Configure npm auth
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > ~/.npmrc
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > ~/.npmrc
+          
+      - run: npm ci
+        working-directory: tee-react-app
 
       - name: Bump version uniquely
         working-directory: tee-react-app
@@ -62,7 +51,7 @@ jobs:
            SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
            NEW_VERSION="$VERSION-${SHORT_SHA}"
            npm version $NEW_VERSION --no-git-tag-version
-           
+
       - run: npm publish
         working-directory: tee-react-app
         env:
@@ -78,26 +67,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      # Step 1: Build and push image quickly
-      - name: Build and push Docker image
+      - name: Build and push Docker image (optimized)
         uses: docker/build-push-action@v4
         with:
           context: .
+          file: ./Dockerfile
           push: true
           cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.sha }}
-
-      # Step 2: Export cache separately (doesn’t block image push)
-      - name: Export build cache
-        if: always()
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: false
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
 
       - name: Update GitOps repository
         shell: bash
@@ -107,17 +87,15 @@ jobs:
           git config --global credential.helper store
           echo "https://${GIT_TOKEN}:x-oauth-basic@github.com" > ~/.git-credentials
 
-          if [ -d gitops ]; then
-            cd gitops
-            git pull
-          else
-            git clone https://github.com/babsontimie/tee-react-app-gitops.git gitops
-            cd gitops
-          fi
+          rm -rf gitops
+          git clone https://github.com/babsontimie/tee-react-app-gitops.git gitops
+          cd gitops/k8s-files
 
-          cd k8s-files
+          # Update image tag in deployment.yaml
           sed -i "s|image: ghcr.io/.*/.*:.*|image: ghcr.io/${{ github.repository }}:${{ github.sha }}|g" deployment.yaml
+          
           kubectl apply -f argocd-application.yaml -n argocd
+          
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add deployment.yaml
