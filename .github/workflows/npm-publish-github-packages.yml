@@ -50,7 +50,8 @@ jobs:
         working-directory: tee-react-app
         run: |
            VERSION=$(node -p "require('./package.json').version")
-           NEW_VERSION="$VERSION-${GITHUB_RUN_NUMBER}"
+           SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)           
+           NEW_VERSION="$VERSION-${SHORT_SHA}"
            npm version $NEW_VERSION --no-git-tag-version
            
         
