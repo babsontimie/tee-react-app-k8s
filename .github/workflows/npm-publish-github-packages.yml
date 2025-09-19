@@ -47,11 +47,12 @@ jobs:
       #   working-directory: tee-react-app        
 
       - name: Bump version uniquely
+        working-directory: tee-react-app
         run: |
            VERSION=$(node -p "require('./tee-react-app/package.json').version")
            NEW_VERSION="$VERSION-${GITHUB_RUN_NUMBER}"
            npm version $NEW_VERSION --no-git-tag-version
-           working-directory: tee-react-app
+           
         
       - run: npm publish
         working-directory: tee-react-app
