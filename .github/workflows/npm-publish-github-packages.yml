@@ -39,7 +39,8 @@ jobs:
       - run: npm publish
         working-directory: tee-react-app
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          #NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}          
           
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v2
