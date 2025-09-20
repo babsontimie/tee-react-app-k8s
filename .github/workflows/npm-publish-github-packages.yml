@@ -44,13 +44,21 @@ jobs:
       - run: npm ci
         working-directory: tee-react-app
 
-      - name: Bump version uniquely
+      - name: Skip if version exists
         working-directory: tee-react-app
         run: |
-           VERSION=$(node -p "require('./package.json').version")
-           SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-           NEW_VERSION="$VERSION-${SHORT_SHA}"
-           npm version $NEW_VERSION --no-git-tag-version
+          VERSION=$(node -p "require('./package.json').version")
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          UNIQUE_VERSION="${VERSION}-${SHORT_SHA}"
+          if npm view @babsontimie/tee-react-app@$UNIQUE_VERSION --registry=https://npm.pkg.github.com > /dev/null 2>&1; then
+            echo "Version $UNIQUE_VERSION already exists. Skipping publish."
+            exit 0
+          fi
+          npm version $UNIQUE_VERSION --no-git-tag-version
+
+
+
+
 
       - run: npm publish
         working-directory: tee-react-app
