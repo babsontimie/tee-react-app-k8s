@@ -7,16 +7,34 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: self-hosted
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm ci
+
+      # Cache npm dependencies for faster builds
+      - name: Cache node modules
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('tee-react-app/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: npm ci
         working-directory: tee-react-app
-      - run: npm test
+
+      - name: Run tests
+        run: npm test
         working-directory: tee-react-app
 
       - name: Login to GitHub Container Registry
@@ -29,11 +47,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (with cache)
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.sha }}
@@ -43,20 +63,20 @@ jobs:
         env:
           GIT_TOKEN: ${{ secrets.GITOPS_PAT }}
         run: |
-          git config --global credential.helper store
-          echo "https://${GIT_TOKEN}:x-oauth-basic@github.com" > ~/.git-credentials
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
 
-          # Clean and clone
           rm -rf gitops
           git clone https://github.com/babsontimie/tee-react-app-gitops.git gitops
           cd gitops/k8s-files
 
-
-          # Update image tag in deployment.yaml
+          # Update deployment image tag
           sed -i "s|image: ghcr.io/.*/.*:.*|image: ghcr.io/${{ github.repository }}:${{ github.sha }}|g" deployment.yaml
-          kubectl apply -f argocd-application.yaml -n argocd
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git add deployment.yaml
-          git commit -m "Update image to ${{ github.sha }}" || echo "No changes to commit"
-          git push -f https://${GIT_TOKEN}@github.com/babsontimie/tee-react-app-gitops.git main
+
+          if ! git diff --quiet; then
+            git add deployment.yaml
+            git commit -m "Update image to ${{ github.sha }}"
+            git push https://${GIT_TOKEN}@github.com/babsontimie/tee-react-app-gitops.git main
+          else
+            echo "✅ No changes in deployment.yaml, skipping commit."
+          fi
