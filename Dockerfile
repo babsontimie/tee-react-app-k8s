@@ -1,35 +1,33 @@
-# ---- Build stage ----
+# -------- Stage 1: Build React app --------
+FROM node:20-alpine AS build
 
-FROM node:20-alpine   AS build
-
-# Set working directory inside the container
+# Set working directory
 WORKDIR /app
 
-# Copy only package.json + lock file first (better layer caching)
-COPY tee-react-app/ package*.json ./
+# Install dependencies (only package.json + lock first for better cache)
+COPY tee-react-app/package*.json ./
+RUN npm ci --legacy-peer-deps
 
-# Install dependencies
+# Copy source code
+COPY tee-react-app/ .
 
-RUN npm ci 
-
-# Copy rest of the app
-
-COPY tee-react-app/ . 
-
-# Build the React app
+# Build production version
 RUN npm run build
 
-
-# ---- Production stage ----
+# -------- Stage 2: Nginx serve --------
 FROM nginx:alpine
 
-COPY --from=build /app/build  /usr/share/nginx/html
+# Remove default nginx static files
+RUN rm -rf /usr/share/nginx/html/*
 
-# Expose port 80
+# Copy build output to Nginx
+COPY --from=build /app/build /usr/share/nginx/html
+
+# Copy custom Nginx config (optional, if you need SPA routing)
+# COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Expose port
 EXPOSE 80
 
 # Start Nginx
 CMD ["nginx", "-g", "daemon off;"]
-
-
-#CMD [ "npm", "start" ]
