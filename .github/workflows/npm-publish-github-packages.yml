@@ -44,21 +44,13 @@ jobs:
       - run: npm ci
         working-directory: tee-react-app
 
-      - name: Skip if version exists
+      - name: Bump version uniquely
         working-directory: tee-react-app
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          UNIQUE_VERSION="${VERSION}-${SHORT_SHA}"
-          if npm view @babsontimie/tee-react-app@$UNIQUE_VERSION --registry=https://npm.pkg.github.com > /dev/null 2>&1; then
-            echo "Version $UNIQUE_VERSION already exists. Skipping publish."
-            exit 0
-          fi
-          npm version $UNIQUE_VERSION --no-git-tag-version
-
-
-
-
+           VERSION=$(node -p "require('./package.json').version")
+           SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+           NEW_VERSION="$VERSION-${SHORT_SHA}"
+           npm version $NEW_VERSION --no-git-tag-version
 
       - run: npm publish
         working-directory: tee-react-app
@@ -73,16 +65,16 @@ jobs:
           password: ${{ secrets.CR_PAT }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build and push Docker image (optimized)
-        uses: docker/build-push-action@v4
+      - name: Build and push Docker image (fast with cache)
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.sha }}
